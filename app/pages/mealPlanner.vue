@@ -83,6 +83,7 @@ async function loadMealPlans() {
         integrationId: tandoorIntegration.value.id,
         from,
         to,
+        _t: Date.now(),
       },
     });
     mealPlans.value = result || [];
