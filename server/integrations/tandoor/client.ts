@@ -18,7 +18,8 @@ export class TandoorService {
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const formattedEndpoint = path.startsWith("/") ? path : `/${path}`;
-    const url = `/api/integrations/tandoor${formattedEndpoint}?integrationId=${this.integrationId}`;
+    const separator = formattedEndpoint.includes("?") ? "&" : "?";
+    const url = `/api/integrations/tandoor${formattedEndpoint}${separator}integrationId=${this.integrationId}`;
 
     const headers = {
       "Content-Type": "application/json",
