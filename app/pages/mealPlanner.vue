@@ -167,8 +167,8 @@ async function saveMealPlan() {
       method: "POST",
       body: {
         integrationId: tandoorIntegration.value.id,
-        recipe: { id: selectedRecipe.value.id },
-        meal_type: { id: defaultMealType.id },
+        recipe: { id: selectedRecipe.value.id, name: selectedRecipe.value.name },
+        meal_type: { id: defaultMealType.id, name: defaultMealType.name },
         from_date: `${selectedDate.value}T18:00:00`,
         to_date: `${selectedDate.value}T18:00:00`,
         servings: servings.value,

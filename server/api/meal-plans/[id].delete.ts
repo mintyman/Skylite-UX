@@ -26,7 +26,9 @@ async function tandoorFetch<T>(baseUrl: string, apiKey: string, path: string, in
     consola.error("Tandoor API error:", response.status, errorText);
     throw createError({ statusCode: response.status, statusMessage: `Tandoor API: ${errorText}` });
   }
-  return response.json() as Promise<T>;
+  if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  return text ? JSON.parse(text) : (undefined as T);
 }
 
 export default defineEventHandler(async (event) => {
