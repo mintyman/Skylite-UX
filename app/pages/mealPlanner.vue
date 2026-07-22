@@ -245,9 +245,9 @@ function formatMinutes(mins: unknown): string {
 }
 
 function getRecipeImageUrl(imageUrl: string): string {
-  if (!imageUrl) return "";
+  if (!imageUrl || !tandoorIntegration.value) return "";
   const path = imageUrl.replace(/^https?:\/\/[^/]+/, "");
-  return `/api/integrations/tandoor/media${path}`;
+  return `/api/integrations/tandoor/media${path}?integrationId=${tandoorIntegration.value.id}`;
 }
 
 function previousWeek() {
