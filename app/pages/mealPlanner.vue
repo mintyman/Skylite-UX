@@ -20,6 +20,10 @@ const servings = ref(1);
 const note = ref("");
 const isSaving = ref(false);
 
+const isRecipeDetailOpen = ref(false);
+const recipeDetail = ref<Record<string, unknown> | null>(null);
+const recipeDetailLoading = ref(false);
+
 const tandoorIntegration = ref<{ id: string; apiKey: string; baseUrl: string } | null>(null);
 
 const weekStart = computed(() => startOfWeek(currentDate.value, { weekStartsOn: 1 }));
@@ -204,6 +208,48 @@ async function deleteMealPlan(mealPlanId: number) {
   }
 }
 
+async function openRecipeDetail(recipeId: number) {
+  if (!tandoorIntegration.value) return;
+  recipeDetailLoading.value = true;
+  recipeDetail.value = null;
+  isRecipeDetailOpen.value = true;
+  try {
+    const result = await $fetch<Record<string, unknown>>(`/api/meal-plans/recipes/${recipeId}`, {
+      query: { integrationId: tandoorIntegration.value.id },
+    });
+    recipeDetail.value = result;
+  }
+  catch (error) {
+    console.error("Failed to load recipe:", error);
+    showError("Failed to load recipe details");
+    isRecipeDetailOpen.value = false;
+  }
+  finally {
+    recipeDetailLoading.value = false;
+  }
+}
+
+function getRecipeSteps(recipe: Record<string, unknown>): Array<{ instruction: string; order: number; name?: string }> {
+  const steps = recipe.steps as Array<{ instruction: string; order: number; name?: string }> | undefined;
+  if (!steps || !Array.isArray(steps)) return [];
+  return steps.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+function formatMinutes(mins: unknown): string {
+  const n = Number(mins);
+  if (!n || n <= 0) return "";
+  if (n < 60) return `${n}m`;
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function getRecipeImageUrl(imageUrl: string): string {
+  if (!imageUrl) return "";
+  const path = imageUrl.replace(/^https?:\/\/[^/]+/, "");
+  return `/api/integrations/tandoor/media${path}`;
+}
+
 function previousWeek() {
   currentDate.value = subWeeks(currentDate.value, 1);
 }
@@ -309,7 +355,10 @@ onMounted(async () => {
                 class="group flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors"
               >
                 <div class="flex-1 min-w-0">
-                  <p class="text-xs font-medium truncate">
+                  <p
+                    class="text-xs font-medium truncate cursor-pointer text-primary hover:underline"
+                    @click.stop="openRecipeDetail(meal.recipe?.id || 0)"
+                  >
                     {{ meal.recipe_name || meal.recipe?.name || "Unknown recipe" }}
                   </p>
                   <p v-if="meal.note" class="text-[10px] text-muted truncate">
@@ -436,6 +485,98 @@ onMounted(async () => {
             :disabled="!selectedRecipe"
             @click="saveMealPlan"
           />
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="isRecipeDetailOpen" :ui="{ content: 'w-[550px] max-h-[85vh]' }">
+      <template #header>
+        <div class="flex items-center justify-between w-full">
+          <h3 class="text-base font-semibold leading-6">
+            {{ (recipeDetail?.name as string) || "Recipe" }}
+          </h3>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-x"
+            class="-my-1"
+            @click="isRecipeDetailOpen = false"
+          />
+        </div>
+      </template>
+
+      <template #body>
+        <div v-if="recipeDetailLoading" class="flex items-center justify-center py-12">
+          <ULoadingIcon />
+        </div>
+
+        <div v-else-if="recipeDetail" class="flex flex-col gap-5">
+          <div v-if="recipeDetail.image" class="w-full h-48 rounded-lg overflow-hidden bg-muted">
+            <img
+              :src="getRecipeImageUrl(recipeDetail.image as string)"
+              :alt="(recipeDetail.name as string)"
+              class="w-full h-full object-cover"
+            >
+          </div>
+
+          <div v-if="recipeDetail.description" class="text-sm text-muted">
+            {{ recipeDetail.description }}
+          </div>
+
+          <div class="flex flex-wrap gap-3 text-xs text-muted">
+            <div v-if="recipeDetail.servings" class="flex items-center gap-1">
+              <UIcon name="i-lucide-users" class="size-3.5" />
+              <span>{{ recipeDetail.servings }} servings</span>
+            </div>
+            <div v-if="(recipeDetail.working_time as number) > 0" class="flex items-center gap-1">
+              <UIcon name="i-lucide-clock" class="size-3.5" />
+              <span>Prep: {{ formatMinutes(recipeDetail.working_time) }}</span>
+            </div>
+            <div v-if="(recipeDetail.waiting_time as number) > 0" class="flex items-center gap-1">
+              <UIcon name="i-lucide-hourglass" class="size-3.5" />
+              <span>Cook: {{ formatMinutes(recipeDetail.waiting_time) }}</span>
+            </div>
+          </div>
+
+          <div v-if="recipeDetail.keywords && (recipeDetail.keywords as unknown[]).length > 0" class="flex flex-wrap gap-1">
+            <UBadge
+              v-for="kw in (recipeDetail.keywords as Array<{ label: string }>).slice(0, 10)"
+              :key="kw.label"
+              color="neutral"
+              variant="subtle"
+              size="xs"
+            >
+              {{ kw.label }}
+            </UBadge>
+          </div>
+
+          <div v-if="getRecipeSteps(recipeDetail).length > 0" class="flex flex-col gap-3">
+            <h4 class="text-sm font-semibold">Instructions</h4>
+            <div
+              v-for="(step, idx) in getRecipeSteps(recipeDetail)"
+              :key="idx"
+              class="flex gap-3"
+            >
+              <div class="flex items-center justify-center size-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0 mt-0.5">
+                {{ idx + 1 }}
+              </div>
+              <p class="text-sm text-muted leading-relaxed whitespace-pre-line">
+                {{ step.instruction }}
+              </p>
+            </div>
+          </div>
+
+          <div v-if="recipeDetail.source_url" class="pt-2 border-t border-default">
+            <a
+              :href="recipeDetail.source_url as string"
+              target="_blank"
+              rel="noopener"
+              class="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <UIcon name="i-lucide-external-link" class="size-3" />
+              View source
+            </a>
+          </div>
         </div>
       </template>
     </UModal>
