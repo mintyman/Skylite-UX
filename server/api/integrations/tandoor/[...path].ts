@@ -35,8 +35,9 @@ export default defineEventHandler(async (event) => {
   const integration = await prisma.integration.findFirst({
     where: {
       id: integrationId,
-      type: "shopping",
+      service: "tandoor",
       enabled: true,
+      type: { in: ["shopping", "meal"] },
     },
   });
 
@@ -47,10 +48,10 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  if (integration.type !== "shopping" || integration.service !== "tandoor") {
+  if (integration.service !== "tandoor") {
     throw createError({
       statusCode: 400,
-      statusMessage: "Invalid integration type for Tandoor API",
+      statusMessage: "Invalid integration service for Tandoor API",
     });
   }
 
