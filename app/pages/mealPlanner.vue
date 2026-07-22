@@ -165,8 +165,10 @@ async function saveMealPlan() {
   try {
     await $fetch("/api/meal-plans", {
       method: "POST",
-      body: {
+      query: {
         integrationId: tandoorIntegration.value.id,
+      },
+      body: {
         recipe: { id: selectedRecipe.value.id, name: selectedRecipe.value.name },
         meal_type: { id: defaultMealType.id, name: defaultMealType.name },
         from_date: `${selectedDate.value}T18:00:00`,
