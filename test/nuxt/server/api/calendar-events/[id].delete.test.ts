@@ -54,7 +54,9 @@ describe("dELETE /api/calendar-events/[id]", () => {
 
       const response = await handler(event);
 
-      const actualId = expectExpanded ? params.id.split("-")[0] : params.id;
+      const actualId = expectExpanded
+        ? params.id.replace(/-\d{8}T\d{6}Z$/, "")
+        : params.id;
 
       expect(prisma.calendarEvent.findUnique).toHaveBeenCalledWith({
         where: { id: actualId },

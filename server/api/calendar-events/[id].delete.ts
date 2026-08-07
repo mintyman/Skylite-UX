@@ -11,13 +11,11 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const dashCount = (id.match(/-/g) || []).length;
-    const isExpandedEvent = dashCount > 1;
+    const isExpandedEvent = /^.+-\d{8}T\d{6}Z$/.test(id);
     let actualId = id;
 
     if (isExpandedEvent) {
-      const parts = id.split("-");
-      actualId = parts[0] || id; // Fallback to full ID if split fails
+      actualId = id.replace(/-\d{8}T\d{6}Z$/, "");
     }
 
     const existingEvent = await prisma.calendarEvent.findUnique({

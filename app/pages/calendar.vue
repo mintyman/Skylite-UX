@@ -512,7 +512,8 @@ async function handleEventUpdate(event: CalendarEvent) {
 
 async function handleEventDelete(eventId: string) {
   try {
-    const event = allEvents.value.find(e => e.id === eventId);
+    const event = allEvents.value.find(e => e.id === eventId)
+      ?? allEvents.value.find(e => e.id.split("-")[0] === eventId);
 
     if (!event) {
       showError("Event Not Found", "The event could not be found.");
@@ -544,7 +545,9 @@ async function handleEventDelete(eventId: string) {
           try {
             if (cachedEvents.value && Array.isArray(cachedEvents.value)) {
               cachedEvents.value = cachedEvents.value.filter(
-                (e: CalendarEvent) => e.id !== localCalendar.eventId,
+                (e: CalendarEvent) =>
+                  e.id !== localCalendar.eventId
+                  && e.id.split("-")[0] !== eventId,
               );
             }
 
