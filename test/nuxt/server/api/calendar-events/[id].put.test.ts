@@ -180,9 +180,47 @@ describe("pUT /api/calendar-events/[id]", () => {
           },
         }),
       },
+      {
+        name: "update recurring event series (expanded ID)",
+        params: { id: "event-1-20250115T100000Z" },
+        expectedId: "event-1",
+        body: (base: ReturnType<typeof createBaseUpdateBody>) => ({
+          ...base,
+          ical_event: {
+            rrule: {
+              freq: "WEEKLY",
+              interval: 1,
+              byday: ["MO", "FR"],
+            },
+          } as ICalEvent,
+        }),
+        currentEvent: () => createBaseEvent(),
+        expectedUpdate: (
+          base: ReturnType<typeof createBaseUpdateBody>,
+        ) => ({
+          title: base.title,
+          description: base.description,
+          start: new Date(base.start),
+          end: new Date(base.end),
+          allDay: base.allDay,
+          color: null,
+          location: null,
+          ical_event: {
+            rrule: {
+              freq: "WEEKLY",
+              interval: 1,
+              byday: ["MO", "FR"],
+            },
+          } as ICalEvent,
+          users: {
+            deleteMany: {},
+            create: [],
+          },
+        }),
+      },
     ])(
       "$name",
-      async ({ params, body, currentEvent, expectedUpdate }) => {
+      async ({ params, body, currentEvent, expectedUpdate, expectedId }) => {
         const requestBody = body(createBaseUpdateBody()) as {
           title: string;
           description: string;
@@ -220,7 +258,7 @@ describe("pUT /api/calendar-events/[id]", () => {
         const response = await handler(event);
 
         expect(prisma.calendarEvent.update).toHaveBeenCalledWith({
-          where: { id: params.id },
+          where: { id: expectedId || params.id },
           data: expectedUpdateData,
           include: {
             users: {

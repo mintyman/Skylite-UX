@@ -353,7 +353,7 @@ async function handleEventUpdate(event: CalendarEvent) {
 
             const eventColor = getEventUserColors(event);
             const { updateEvent } = useCalendarEvents();
-            await updateEvent(localCalendar.eventId, {
+            await updateEvent(event.id, {
               title: event.title,
               description: event.description,
               start: event.start,
