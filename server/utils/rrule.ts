@@ -44,6 +44,22 @@ export function parseRRuleString(rruleString: string): ICalEvent["rrule"] | unde
         rruleObj.bymonth = value.split(",").map(month => Number.parseInt(month, 10));
         break;
 
+      case "BYMONTHDAY":
+        rruleObj.bymonthday = value.split(",").map(day => Number.parseInt(day, 10));
+        break;
+
+      case "BYSETPOS":
+        rruleObj.bysetpos = value.split(",").map(pos => Number.parseInt(pos, 10));
+        break;
+
+      case "WKST":
+        rruleObj.wkst = value.toUpperCase();
+        break;
+
+      case "EXDATE":
+        rruleObj.exdate = value.split(",").map(date => date.trim());
+        break;
+
       case "COUNT":
         rruleObj.count = Number.parseInt(value, 10);
         break;
@@ -61,16 +77,80 @@ export function parseRRuleString(rruleString: string): ICalEvent["rrule"] | unde
   return rruleObj;
 }
 
+function normalizeUntilDate(until: string): string {
+  if (/^\d{8}$/.test(until)) {
+    return `${until.slice(0, 4)}-${until.slice(4, 6)}-${until.slice(6, 8)}`;
+  }
+  if (/^\d{8}T\d{6}Z$/.test(until)) {
+    return `${until.slice(0, 4)}-${until.slice(4, 6)}-${until.slice(6, 8)}T${until.slice(9, 11)}:${until.slice(11, 13)}:${until.slice(13, 15)}Z`;
+  }
+  return until;
+}
+
+function compactUntilDate(until: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(until)) {
+    return until.replace(/-/g, "");
+  }
+  const match = until.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(Z?)$/);
+  if (match) {
+    const [, year, month, day, hour, minute, second, z] = match;
+    return `${year}${month}${day}T${hour}${minute}${second}${z || "Z"}`;
+  }
+  return until;
+}
+
 function parseUntilToDate(until: string | undefined): Date | null {
   if (!until) {
     return null;
   }
   try {
-    return ical.Time.fromString(until, undefined).toJSDate();
+    return ical.Time.fromString(normalizeUntilDate(until), undefined).toJSDate();
   }
   catch {
     return null;
   }
+}
+
+export function toGoogleRRULEString(
+  rrule: NonNullable<ICalEvent["rrule"]>,
+  allDay: boolean,
+): string {
+  const parts = [`FREQ=${rrule.freq.toUpperCase()}`];
+
+  if (rrule.interval && rrule.interval > 1) {
+    parts.push(`INTERVAL=${rrule.interval}`);
+  }
+
+  if (rrule.count) {
+    parts.push(`COUNT=${rrule.count}`);
+  }
+
+  if (rrule.until) {
+    const compactUntil = compactUntilDate(rrule.until);
+    parts.push(`UNTIL=${allDay ? compactUntil.slice(0, 8) : compactUntil}`);
+  }
+
+  if (rrule.byday && rrule.byday.length > 0) {
+    parts.push(`BYDAY=${rrule.byday.join(",")}`);
+  }
+
+  if (rrule.bymonthday && rrule.bymonthday.length > 0) {
+    parts.push(`BYMONTHDAY=${rrule.bymonthday.join(",")}`);
+  }
+
+  if (rrule.bymonth && rrule.bymonth.length > 0) {
+    parts.push(`BYMONTH=${rrule.bymonth.join(",")}`);
+  }
+
+  if (rrule.bysetpos && rrule.bysetpos.length > 0) {
+    parts.push(`BYSETPOS=${rrule.bysetpos.join(",")}`);
+  }
+
+  if (rrule.wkst) {
+    parts.push(`WKST=${rrule.wkst.toUpperCase()}`);
+  }
+
+  return `RRULE:${parts.join(";")}`;
 }
 
 export function expandRecurringEvents<T extends {
@@ -100,13 +180,19 @@ export function expandRecurringEvents<T extends {
       vevent.addPropertyWithValue("dtend", dtend);
 
       const rrule = new ical.Property("rrule", vevent);
-      rrule.setValue(event.ical_event.rrule);
+      rrule.setValue(event.ical_event.rrule.until
+        ? { ...event.ical_event.rrule, until: normalizeUntilDate(event.ical_event.rrule.until) }
+        : event.ical_event.rrule);
       vevent.addProperty(rrule);
 
       const expansion = new ical.RecurExpansion({
         component: vevent,
         dtstart,
       });
+
+      const exdateSet = new Set(
+        (event.ical_event.rrule.exdate ?? []).map(exdate => normalizeUntilDate(exdate).slice(0, 10)),
+      );
 
       let count = 0;
       const maxInstances = 1000;
@@ -119,6 +205,11 @@ export function expandRecurringEvents<T extends {
         }
 
         const currentDate = currentTime.toJSDate();
+
+        if (exdateSet.has(currentDate.toISOString().slice(0, 10))) {
+          count++;
+          continue;
+        }
 
         if (currentDate > endDate) {
           break;

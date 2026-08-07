@@ -10,42 +10,9 @@ import { isGoogleApiError } from "~/types/errors";
 import type { ICalEvent } from "../../../../integrations/iCal/types";
 
 import { GoogleCalendarServerService } from "../../../../integrations/google_calendar/client";
-import { parseRRuleString } from "../../../../utils/rrule";
+import { parseRRuleString, toGoogleRRULEString } from "../../../../utils/rrule";
 
 const prisma = new PrismaClient();
-
-function rruleObjectToString(rrule: {
-  freq: string;
-  interval?: number;
-  byday?: string[];
-  bymonth?: number[];
-  count?: number;
-  until?: string;
-}): string {
-  const parts = [`FREQ=${rrule.freq.toUpperCase()}`];
-
-  if (rrule.interval && rrule.interval > 1) {
-    parts.push(`INTERVAL=${rrule.interval}`);
-  }
-
-  if (rrule.count) {
-    parts.push(`COUNT=${rrule.count}`);
-  }
-
-  if (rrule.until) {
-    parts.push(`UNTIL=${rrule.until}`);
-  }
-
-  if (rrule.byday && rrule.byday.length > 0) {
-    parts.push(`BYDAY=${rrule.byday.join(",")}`);
-  }
-
-  if (rrule.bymonth && rrule.bymonth.length > 0) {
-    parts.push(`BYMONTH=${rrule.bymonth.join(",")}`);
-  }
-
-  return `RRULE:${parts.join(";")}`;
-}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -151,7 +118,7 @@ export default defineEventHandler(async (event) => {
       end: eventData.allDay
         ? { date: endDate.toISOString().split("T")[0] }
         : { dateTime: endDate.toISOString(), timeZone: "UTC" },
-      recurrence: eventData.ical_event?.rrule ? [rruleObjectToString(eventData.ical_event.rrule)] : undefined,
+      recurrence: eventData.ical_event?.rrule ? [toGoogleRRULEString(eventData.ical_event.rrule, eventData.allDay ?? false)] : undefined,
     };
 
     const updatedEvent = await service.updateEvent(calendarId as string, baseEventId as string, googleEventData);

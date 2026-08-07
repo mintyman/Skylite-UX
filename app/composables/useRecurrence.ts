@@ -14,6 +14,16 @@ function getAppTimezone() {
   return getBrowserTimezone() ?? getLocalTimeZone();
 }
 
+function normalizeUntilDate(until: string): string {
+  if (/^\d{8}$/.test(until)) {
+    return `${until.slice(0, 4)}-${until.slice(4, 6)}-${until.slice(6, 8)}`;
+  }
+  if (/^\d{8}T\d{6}Z$/.test(until)) {
+    return `${until.slice(0, 4)}-${until.slice(4, 6)}-${until.slice(6, 8)}T${until.slice(9, 11)}:${until.slice(11, 13)}:${until.slice(13, 15)}Z`;
+  }
+  return until;
+}
+
 export function getDefaultDateToday(): CalendarDate {
   return today(getAppTimezone());
 }
@@ -124,7 +134,7 @@ export function useRecurrence() {
         }
         else if (rrule.until) {
           state.recurrenceEndType.value = "until";
-          const untilICal = ical.Time.fromString(rrule.until, "UTC");
+          const untilICal = ical.Time.fromString(normalizeUntilDate(rrule.until), "UTC");
           if (untilICal) {
             const untilDate = untilICal.toJSDate();
             state.recurrenceUntil.value = new CalendarDate(

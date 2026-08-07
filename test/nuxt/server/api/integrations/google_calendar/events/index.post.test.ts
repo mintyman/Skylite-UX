@@ -42,9 +42,13 @@ vi.mock("ical.js", () => ({
   },
 }));
 
-vi.mock("~~/server/utils/rrule", () => ({
-  parseRRuleString: vi.fn(),
-}));
+vi.mock("~~/server/utils/rrule", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~~/server/utils/rrule")>();
+  return {
+    parseRRuleString: vi.fn(),
+    toGoogleRRULEString: actual.toGoogleRRULEString,
+  };
+});
 
 vi.mock("~/types/errors", () => ({
   isGoogleApiError: vi.fn((error: unknown) => {

@@ -24,6 +24,9 @@ export type ICalEvent = {
     byday?: string[];
     bymonth?: number[];
     bymonthday?: number[];
+    bysetpos?: number[];
+    wkst?: string;
+    exdate?: string[];
     count?: number;
     until?: string;
   };

@@ -26,6 +26,7 @@ import {
   calculateNextDueDate,
   expandRecurringEvents,
   parseRRuleString,
+  toGoogleRRULEString,
 } from "../../../../server/utils/rrule";
 
 describe("calculateNextDueDate", () => {
@@ -866,5 +867,271 @@ describe("expandRecurringEvents", () => {
       expect(e.start >= start && e.start <= end).toBe(true);
       expect(e.end >= start && e.end <= end).toBe(true);
     }
+  });
+});
+
+describe("parseRRuleString extended parts", () => {
+  it("parses BYMONTHDAY", () => {
+    const r = parseRRuleString("RRULE:FREQ=MONTHLY;BYMONTHDAY=15");
+    expect(r?.freq).toBe("MONTHLY");
+    expect(r?.bymonthday).toEqual([15]);
+  });
+
+  it("parses BYSETPOS", () => {
+    const r = parseRRuleString("RRULE:FREQ=MONTHLY;BYDAY=MO;BYSETPOS=-1");
+    expect(r?.bysetpos).toEqual([-1]);
+    expect(r?.byday).toEqual(["MO"]);
+  });
+
+  it("parses WKST", () => {
+    const r = parseRRuleString("RRULE:FREQ=WEEKLY;BYDAY=MO;WKST=SU");
+    expect(r?.wkst).toBe("SU");
+  });
+
+  it("parses EXDATE", () => {
+    const r = parseRRuleString("RRULE:FREQ=WEEKLY;BYDAY=MO;EXDATE=20250113,20250127");
+    expect(r?.exdate).toEqual(["20250113", "20250127"]);
+  });
+});
+
+describe("expandRecurringEvents with compact Google UNTIL", () => {
+  const baseEvent = (start: Date) => ({
+    id: "ev-until",
+    start,
+    end: new Date(start.getTime() + 60 * 60 * 1000),
+    ical_event: {
+      type: "VEVENT" as const,
+      uid: "u-until",
+      summary: "Until",
+      dtstart: start.toISOString(),
+      dtend: new Date(start.getTime() + 60 * 60 * 1000).toISOString(),
+      rrule: {} as ICalEvent["rrule"],
+    },
+  });
+
+  it("expands a recurrence with compact date-only UNTIL (all-day)", () => {
+    const event = baseEvent(new Date("2019-09-02T00:00:00Z"));
+    event.ical_event.rrule = { freq: "WEEKLY", byday: ["MO"], until: "20191006" };
+    const start = new Date("2019-09-01");
+    const end = new Date("2019-11-30");
+
+    const result = expandRecurringEvents([event], start, end);
+
+    expect(result.length).toBe(5);
+    expect(result.map(e => e.start.toISOString().slice(0, 10))).toEqual([
+      "2019-09-02",
+      "2019-09-09",
+      "2019-09-16",
+      "2019-09-23",
+      "2019-09-30",
+    ]);
+  });
+
+  it("expands a recurrence with compact datetime UNTIL (timed)", () => {
+    const event = baseEvent(new Date("2019-09-02T09:00:00Z"));
+    event.ical_event.rrule = { freq: "WEEKLY", byday: ["MO"], until: "20190930T090000Z" };
+    const start = new Date("2019-09-01");
+    const end = new Date("2019-10-31");
+
+    const result = expandRecurringEvents([event], start, end);
+
+    expect(result.length).toBe(5);
+    for (const e of result) {
+      expect(e.start.getTime()).toBeLessThanOrEqual(new Date("2019-09-30T09:00:00Z").getTime());
+    }
+  });
+
+  it("returns no instances when until is before the range", () => {
+    const event = baseEvent(new Date("2017-10-23T00:00:00Z"));
+    event.ical_event.rrule = { freq: "WEEKLY", byday: ["MO"], until: "20191006" };
+    const start = new Date("2025-01-01");
+    const end = new Date("2026-01-01");
+
+    const result = expandRecurringEvents([event], start, end);
+
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("expandRecurringEvents with BYMONTHDAY / BYSETPOS / EXDATE", () => {
+  it("expands monthly bymonthday", () => {
+    const start = new Date(2025, 0, 15, 10, 0, 0);
+    const event = {
+      id: "ev-mday",
+      start,
+      end: new Date(2025, 0, 15, 11, 0, 0),
+      ical_event: {
+        type: "VEVENT" as const,
+        uid: "u-mday",
+        summary: "Monthly",
+        dtstart: start.toISOString(),
+        dtend: new Date(2025, 0, 15, 11, 0, 0).toISOString(),
+        rrule: { freq: "MONTHLY", bymonthday: [15] },
+      },
+    };
+
+    const result = expandRecurringEvents(
+      [event],
+      new Date(2025, 0, 1),
+      new Date(2025, 3, 30),
+    );
+
+    expect(result.map(e => e.start.toISOString().slice(0, 10))).toEqual([
+      "2025-01-15",
+      "2025-02-15",
+      "2025-03-15",
+      "2025-04-15",
+    ]);
+  });
+
+  it("expands last Monday of month via bysetpos -1", () => {
+    const start = new Date("2025-01-15T00:00:00Z");
+    const event = {
+      id: "ev-setpos",
+      start,
+      end: new Date("2025-01-15T01:00:00Z"),
+      ical_event: {
+        type: "VEVENT" as const,
+        uid: "u-setpos",
+        summary: "Last Mon",
+        dtstart: start.toISOString(),
+        dtend: new Date("2025-01-15T01:00:00Z").toISOString(),
+        rrule: { freq: "MONTHLY", byday: ["MO"], bysetpos: [-1] },
+      },
+    };
+
+    const result = expandRecurringEvents(
+      [event],
+      new Date("2025-01-01"),
+      new Date("2025-06-30"),
+    );
+
+    expect(result.map(e => e.start.toISOString().slice(0, 10))).toEqual([
+      "2025-01-27",
+      "2025-02-24",
+      "2025-03-31",
+      "2025-04-28",
+      "2025-05-26",
+      "2025-06-30",
+    ]);
+  });
+
+  it("filters dates listed in exdate", () => {
+    const start = new Date("2025-01-06T00:00:00Z");
+    const event = {
+      id: "ev-ex",
+      start,
+      end: new Date("2025-01-06T01:00:00Z"),
+      ical_event: {
+        type: "VEVENT" as const,
+        uid: "u-ex",
+        summary: "Excluded",
+        dtstart: start.toISOString(),
+        dtend: new Date("2025-01-06T01:00:00Z").toISOString(),
+        rrule: { freq: "WEEKLY", byday: ["MO"], exdate: ["20250113", "2025-01-27"] },
+      },
+    };
+
+    const result = expandRecurringEvents(
+      [event],
+      new Date("2025-01-01"),
+      new Date("2025-01-31"),
+    );
+
+    expect(result.map(e => e.start.toISOString().slice(0, 10))).toEqual([
+      "2025-01-06",
+      "2025-01-20",
+    ]);
+  });
+});
+
+describe("toGoogleRRULEString", () => {
+  it("compacts dashed datetime UNTIL for timed events", () => {
+    const s = toGoogleRRULEString(
+      { freq: "DAILY", until: "2026-08-08T23:59:59Z" },
+      false,
+    );
+    expect(s).toBe("RRULE:FREQ=DAILY;UNTIL=20260808T235959Z");
+  });
+
+  it("writes date-only UNTIL for all-day events", () => {
+    const s = toGoogleRRULEString(
+      { freq: "DAILY", until: "2026-08-08T23:59:59Z" },
+      true,
+    );
+    expect(s).toBe("RRULE:FREQ=DAILY;UNTIL=20260808");
+  });
+
+  it("passes through compact UNTIL untouched", () => {
+    expect(toGoogleRRULEString({ freq: "DAILY", until: "20191006" }, true))
+      .toBe("RRULE:FREQ=DAILY;UNTIL=20191006");
+    expect(toGoogleRRULEString({ freq: "DAILY", until: "20191006T000000Z" }, false))
+      .toBe("RRULE:FREQ=DAILY;UNTIL=20191006T000000Z");
+  });
+
+  it("serializes interval, count, byday, bymonthday, bysetpos, bymonth and wkst", () => {
+    const s = toGoogleRRULEString(
+      {
+        freq: "MONTHLY",
+        interval: 2,
+        count: 5,
+        bymonthday: [15],
+        bymonth: [1, 6, 12],
+        bysetpos: [-1],
+        byday: ["MO"],
+        wkst: "SU",
+      },
+      false,
+    );
+    expect(s).toContain("FREQ=MONTHLY");
+    expect(s).toContain("INTERVAL=2");
+    expect(s).toContain("COUNT=5");
+    expect(s).toContain("BYMONTHDAY=15");
+    expect(s).toContain("BYMONTH=1,6,12");
+    expect(s).toContain("BYSETPOS=-1");
+    expect(s).toContain("BYDAY=MO");
+    expect(s).toContain("WKST=SU");
+  });
+});
+
+describe("calculateNextDueDate with compact until", () => {
+  beforeEach(() => {
+    const mockDate = new Date("2025-01-15T00:00:00");
+    vi.useFakeTimers();
+    vi.setSystemTime(mockDate);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns the occurrence on or before a compact until", () => {
+    const rrule: ICalEvent["rrule"] = {
+      freq: "DAILY",
+      interval: 1,
+      until: "20250118",
+    };
+    const originalDTSTART = new Date("2025-01-10T00:00:00");
+    const previousDueDate = new Date("2025-01-17T23:59:59.999");
+    const referenceDate = new Date("2025-01-15T00:00:00");
+
+    const result = calculateNextDueDate(rrule, originalDTSTART, previousDueDate, referenceDate);
+
+    expect(result).not.toBeNull();
+    expect(result?.toISOString().split("T")[0]).toBe("2025-01-18");
+  });
+
+  it("returns null when a compact until is in the past", () => {
+    const rrule: ICalEvent["rrule"] = {
+      freq: "DAILY",
+      interval: 1,
+      until: "20250110",
+    };
+    const originalDTSTART = new Date("2025-01-01T00:00:00");
+    const referenceDate = new Date("2025-01-15T00:00:00");
+
+    const result = calculateNextDueDate(rrule, originalDTSTART, null, referenceDate);
+
+    expect(result).toBeNull();
   });
 });
