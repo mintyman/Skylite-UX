@@ -13,11 +13,14 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    const isExpandedEvent = /^.+-\d{8}T\d{6}Z$/.test(id);
+    const actualId = isExpandedEvent ? id.replace(/-\d{8}T\d{6}Z$/, "") : id;
+
     const utcStart = new Date(start);
     const utcEnd = new Date(end);
 
     const calendarEvent = await prisma.calendarEvent.update({
-      where: { id },
+      where: { id: actualId },
       data: {
         title,
         description,

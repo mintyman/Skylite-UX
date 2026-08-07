@@ -35,3 +35,71 @@ export type TandoorUnit = {
   name: string;
   plural_name: string;
 };
+
+export type TandoorMealPlan = {
+  id: number;
+  title: string;
+  recipe: {
+    id: number;
+    name: string;
+    description: string;
+    image: string | null;
+    keywords: { id: number; label: string }[];
+    working_time: number;
+    waiting_time: number;
+    servings: number;
+    servings_text: string;
+    rating: number | null;
+    created_by: {
+      id: number;
+      username: string;
+      display_name: string;
+    };
+  } | null;
+  servings: number;
+  note: string;
+  from_date: string;
+  to_date: string;
+  meal_type: {
+    id: number;
+    name: string;
+    order: number;
+    time: string | null;
+    color: string | null;
+  };
+  created_by: number;
+  shared: number[];
+  recipe_name: string;
+  meal_type_name: string;
+  shopping: boolean;
+};
+
+export type TandoorMealType = {
+  id: number;
+  name: string;
+  order: number;
+  time: string | null;
+  color: string | null;
+  default: boolean;
+  created_by: number;
+};
+
+export type TandoorRecipe = {
+  id: number;
+  name: string;
+  description: string;
+  image: string | null;
+  keywords: { id: number; label: string }[];
+  working_time: number;
+  waiting_time: number;
+  servings: number;
+  servings_text: string;
+  rating: number | null;
+  created_by: {
+    id: number;
+    username: string;
+    display_name: string;
+  };
+  created_at: string;
+  updated_at: string;
+};
