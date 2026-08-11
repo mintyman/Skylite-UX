@@ -44,4 +44,9 @@ export default withNuxt(antfu({
       ],
     }],
   },
+}, {
+  files: ["public/sw.js"],
+  rules: {
+    "no-restricted-globals": "off",
+  },
 }));

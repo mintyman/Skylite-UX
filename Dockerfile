@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build stage
-FROM --platform=$BUILDPLATFORM dhi.io/node:20-debian13-dev AS builder
+FROM node:20-trixie AS builder
 
 # Set working directory
 WORKDIR /app
@@ -11,7 +11,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install system dependencies and npm packages
-RUN apt-get update -y && apt-get install -y openssl && \
+RUN apt-get update -y && apt-get install -y openssl python3 make g++ && \
     npm ci && \
     rm -rf /var/lib/apt/lists/*
 
@@ -25,7 +25,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Production stage
-FROM dhi.io/node:20-debian13-dev AS production
+FROM node:20-trixie AS production
 
 # Set environment variables
 ENV NODE_ENV=production

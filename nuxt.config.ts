@@ -15,6 +15,12 @@ export default defineNuxtConfig({
       logLevel: "info", // Default log level, can be overridden by NUXT_PUBLIC_LOG_LEVEL env var
       tz: "America/Chicago", // Default timezone, can be overridden by NUXT_PUBLIC_TZ env var
     },
+    ai: {
+      // Gemini API key for photo-to-calendar extraction. Server-only, can be overridden by NUXT_AI_API_KEY env var
+      apiKey: "",
+      // Gemini model to use for extraction. Can be overridden by NUXT_AI_MODEL env var
+      model: "gemini-flash-latest",
+    },
   },
 
   modules: [
@@ -83,6 +89,11 @@ export default defineNuxtConfig({
         lang: "en",
       },
       title: "Skylite UX",
+      link: [
+        { rel: "manifest", href: "/manifest.webmanifest" },
+        { rel: "icon", type: "image/svg+xml", href: "/skylite.svg" },
+        { rel: "apple-touch-icon", sizes: "180x180", href: "/icons/icon-180.png" },
+      ],
     },
   },
 
@@ -139,6 +150,7 @@ export default defineNuxtConfig({
     "~/plugins/02.appInit.ts",
     "~/plugins/03.syncManager.client.ts",
     "~/plugins/04.clientPreferences.client.ts",
+    "~/plugins/05.serviceWorker.client.ts",
   ],
 
   future: {

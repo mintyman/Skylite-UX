@@ -43,6 +43,7 @@ const currentDate = useState<Date>("calendar-current-date", () =>
   getStableDate());
 const view = ref<CalendarView>(props.initialView || "week");
 const isEventDialogOpen = ref(false);
+const isAiDialogOpen = ref(false);
 const selectedEvent = ref<CalendarEvent | null>(null);
 
 onMounted(() => {
@@ -188,6 +189,11 @@ function handleCreateEvent() {
   handleEventCreate(getStableDate());
 }
 
+function handleAiCreate(event: CalendarEvent) {
+  emit("eventAdd", event);
+  isAiDialogOpen.value = false;
+}
+
 const isCurrentMonth = computed(() => {
   return isSameMonth(currentDate.value, getStableDate());
 });
@@ -312,6 +318,14 @@ function getDaysForAgenda(date: Date) {
     position="bottom-right"
     @click="handleCreateEvent"
   />
+  <UButton
+    icon="i-lucide-camera"
+    label="Add from photo"
+    aria-label="Add event from photo"
+    class="fixed z-50 bottom-24 right-7 rounded-full shadow-lg"
+    size="md"
+    @click="isAiDialogOpen = true"
+  />
   <CalendarEventDialog
     :event="selectedEvent"
     :is-open="isEventDialogOpen"
@@ -333,5 +347,10 @@ function getDaysForAgenda(date: Date) {
     @close="isEventDialogOpen = false"
     @save="handleEventSave"
     @delete="handleEventDelete"
+  />
+  <AiEventDialog
+    :is-open="isAiDialogOpen"
+    @close="isAiDialogOpen = false"
+    @create="handleAiCreate"
   />
 </template>
